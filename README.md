@@ -1,4 +1,5 @@
 # 🌱 Fertilizer Recommendation Agent
+LIVE DEMO :https://superb-unicorn-78ef37.netlify.app/
 
 ## Description
 
@@ -29,9 +30,7 @@ Farmer -> Enter Crop & Soil Details -> Backend -> Read fertilizer.csv -> Compare
 -   Vite
 -   Node.js
 
-## Live Demo
 
-https://your-project-url.vercel.app
 
 ## GitHub
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SoilProfile, FertilizerRecommendation, SavedRecord, ChatMessage } from './types';
-import SoilForm from './components/SoilForm';
-import RecommendationReport from './components/RecommendationReport';
+import SoilForm from './SoilForm';
+import RecommendationReport from './RecommendationReport';
 import { 
   Sprout, 
   Bookmark, 

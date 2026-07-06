@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# 🌱 Fertilizer Recommendation Agent
 
-# Run and deploy your AI Studio app
+## Description
 
-This contains everything you need to run your app locally.
+The Fertilizer Recommendation Agent is an AI-powered web application
+that recommends suitable fertilizers based on crop type, soil type, and
+NPK nutrient values.
 
-View your app in AI Studio: https://ai.studio/apps/cd06cf37-edc8-406d-aa65-612156a156dd
+## Workflow
 
-## Run Locally
+``` text
+Farmer -> Enter Crop & Soil Details -> Backend -> Read fertilizer.csv -> Compare Nutrients -> Identify Deficiencies -> Recommend Fertilizer -> Display Result
+```
 
-**Prerequisites:**  Node.js
+## Architecture Diagram
 
+![Architecture](images/architecture.png)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Pipeline
+
+![Pipeline](images/pipeline.png)
+
+## Technologies
+
+-   Google AI Studio
+-   Gemini API
+-   React
+-   TypeScript
+-   Vite
+-   Node.js
+
+## Live Demo
+
+https://your-project-url.vercel.app
+
+## GitHub
+
+https://github.com/your-username/Fertilizer-Recommendation-Agent

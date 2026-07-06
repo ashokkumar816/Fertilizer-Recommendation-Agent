@@ -1,0 +1,6 @@
+{
+  "name": "Fertilizer Recommendation System",
+  "description": "An AI-powered agent that recommends custom fertilizers and application strategies based on soil parameters, crop type, and regional climate.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

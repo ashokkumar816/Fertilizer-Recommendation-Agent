@@ -1,0 +1,21 @@
+Fertilizer-Recommendation-Agent
+├── .env.example
+├── .env.local
+├── .gitignore
+├── .git
+├── App.tsx
+├── LICENSE
+├── README.md
+├── RecommendationReport.tsx
+├── SoilForm.tsx
+├── index.css
+├── index.html
+├── main.tsx
+├── metadata.json
+├── node_modules
+├── package-lock.json
+├── package.json
+├── server.ts
+├── tsconfig.json
+├── types.ts
+└── vite.config.ts

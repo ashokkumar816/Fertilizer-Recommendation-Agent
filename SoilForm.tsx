@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SoilProfile, SoilType, CropType } from '../types';
+import { SoilProfile, SoilType, CropType } from './types';
 import { Sprout, HelpCircle, Compass, Layers, Sliders, RefreshCw } from 'lucide-react';
 
 interface SoilFormProps {

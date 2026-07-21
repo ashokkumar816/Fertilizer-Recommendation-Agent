@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FertilizerRecommendation, SoilProfile, SavedRecord } from '../types';
+import { FertilizerRecommendation, SoilProfile, SavedRecord } from './types';
 import { 
   CheckCircle, 
   AlertTriangle, 

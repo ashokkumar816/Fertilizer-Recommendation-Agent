@@ -1,243 +1,203 @@
 import express from "express";
 import path from "path";
-import dotenv from "dotenv";
-import { GoogleGenAI, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import dotenv from "dotenv";
+import cors from "cors";
 
-// Load environment variables
-dotenv.config();dotenv.config({ path: ".env.local", override: true });
+// ─── LOAD ENV FIRST ───
+dotenv.config({ path: ".env.local" });
+
 const app = express();
 const PORT = Number(process.env.PORT || 5500);
 
-app.use(express.json());
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: '10mb' }));
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
+// ─── INIT GROQ (OpenAI-compatible) ───
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
+if (!GROQ_API_KEY) {
+  console.error("❌ FATAL: No GROQ_API_KEY in .env.local");
+  console.error("   Get one free at: https://console.groq.com/keys");
+  process.exit(1);
+}
+
+console.log(`🔑 Groq API Key loaded: ${GROQ_API_KEY.slice(0, 10)}...`);
+
+// Groq uses OpenAI-compatible endpoint
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const MODEL = "llama-3.3-70b-versatile"; // Fast, capable, free tier eligible
+
+// ─── HEALTH CHECK ───
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", port: PORT, provider: "groq", model: MODEL });
 });
 
-// AI Fertilizer Recommendation Endpoint
+// ─── RECOMMENDATION ───
 app.post("/api/recommend", async (req, res) => {
   try {
     const profile = req.body.profile;
-    if (!profile) {
-      return res.status(400).json({ error: "Soil profile data is required" });
-    }
+    if (!profile) return res.status(400).json({ error: "Profile required" });
 
-    const {
-      soilType,
-      cropType,
-      nLevel,
-      pLevel,
-      kLevel,
-      phLevel,
-      moistureLevel,
-      organicMatter,
-      farmArea,
-      areaUnit,
-      climateRegion
-    } = profile;
+    const { soilType, cropType, nLevel, pLevel, kLevel, phLevel, moistureLevel, organicMatter, farmArea, areaUnit, climateRegion } = profile;
 
-    const systemPrompt = `You are a highly experienced agricultural scientist, agronomist, and soil doctor. Your goal is to analyze the provided soil test parameters and crop requirements, then deliver a precise, custom fertilizer recommendation and schedule that optimizes yield, keeps costs low, and respects ecological sustainability.`;
+    const systemPrompt = `You are an expert agricultural scientist. Analyze soil profiles and return ONLY valid JSON. No markdown, no code blocks, no extra text.`;
 
-    const userPrompt = `Please analyze the following soil test profile and target crop:
-- Target Crop: ${cropType}
-- Soil Type: ${soilType}
-- Nitrogen (N) Level: ${nLevel} ppm
-- Phosphorus (P) Level: ${pLevel} ppm
-- Potassium (K) Level: ${kLevel} ppm
-- Soil pH: ${phLevel}
-- Moisture Level: ${moistureLevel}
+    const userPrompt = `Analyze this soil profile and return EXACTLY this JSON structure:
+{
+  "soilAnalysis": "detailed professional assessment",
+  "npkStatus": { "n": "deficient|optimal|excess", "p": "deficient|optimal|excess", "k": "deficient|optimal|excess" },
+  "recommendedFertilizers": [{ "name": "string", "type": "organic|chemical", "dosage": "string", "timing": "string", "purpose": "string" }],
+  "applicationSchedule": [{ "stage": "string", "timing": "string", "instructions": "string" }],
+  "soilAmendments": "string",
+  "wateringAndTillageTips": ["tip1", "tip2", "tip3"],
+  "sustainabilityRating": 3
+}
+
+Soil Profile:
+- Crop: ${cropType}
+- Soil: ${soilType}
+- N: ${nLevel} ppm, P: ${pLevel} ppm, K: ${kLevel} ppm
+- pH: ${phLevel}
+- Moisture: ${moistureLevel}
 - Organic Matter: ${organicMatter}
-- Farm/Plot Area: ${farmArea} ${areaUnit}
-- Climate Region: ${climateRegion}
+- Area: ${farmArea} ${areaUnit}
+- Climate: ${climateRegion}`;
 
-Formulate a response detailing:
-1. soilAnalysis: A professional assessment of what these nutrient levels, pH, and soil type mean for growing the target crop.
-2. npkStatus: Determine if each macronutrient (N, P, K) is "deficient", "optimal", or "excess" based on typical requirements for ${cropType}.
-3. recommendedFertilizers: Specific commercial or organic fertilizer suggestions (e.g. Urea, DAP, Compost, Manure) with exact quantities needed to cover the area (${farmArea} ${areaUnit}) and timing of application.
-4. applicationSchedule: Stage-by-stage instructions (e.g., land prep, sowing, vegetative growth, flowering/fruiting).
-5. soilAmendments: Essential steps to correct pH or physical soil structure (e.g., adding lime if pH is too acidic, sulfur/gypsum if alkaline, or compost to sandy/clay soils).
-6. wateringAndTillageTips: 3 practical tips for watering, tillage, or crop rotation optimized for this crop and soil.
-7. sustainabilityRating: An ecological rating (1 to 5) on how sustainable the suggested mix is, with organic composts and precision inorganic dosing yielding a higher rating.`;
+    console.log("🌱 Calling Groq API...");
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: userPrompt,
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            soilAnalysis: { 
-              type: Type.STRING,
-              description: "Agronomic summary of the soil and potential limitations for this crop."
-            },
-            npkStatus: {
-              type: Type.OBJECT,
-              properties: {
-                n: { type: Type.STRING, description: "Must be 'deficient', 'optimal', or 'excess'" },
-                p: { type: Type.STRING, description: "Must be 'deficient', 'optimal', or 'excess'" },
-                k: { type: Type.STRING, description: "Must be 'deficient', 'optimal', or 'excess'" }
-              },
-              required: ["n", "p", "k"]
-            },
-            recommendedFertilizers: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING, description: "Fertilizer name (e.g., Urea, Compost, DAP)" },
-                  type: { type: Type.STRING, description: "Must be 'organic' or 'chemical'" },
-                  dosage: { type: Type.STRING, description: "Exact recommended dosage (e.g. 50 kg for the total plot size of " + farmArea + " " + areaUnit + ")" },
-                  timing: { type: Type.STRING, description: "When to apply (e.g., At transplanting, 3 weeks after sowing)" },
-                  purpose: { type: Type.STRING, description: "How this helps the crop (e.g., supplies starter phosphorus for roots)" }
-                },
-                required: ["name", "type", "dosage", "timing", "purpose"]
-              }
-            },
-            applicationSchedule: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  stage: { type: Type.STRING, description: "Growth stage (e.g., Seedling, Tillering)" },
-                  timing: { type: Type.STRING, description: "Timing timeline (e.g., Day 15, After first weeding)" },
-                  instructions: { type: Type.STRING, description: "Specific steps to take during this phase" }
-                },
-                required: ["stage", "timing", "instructions"]
-              }
-            },
-            soilAmendments: { 
-              type: Type.STRING, 
-              description: "pH amendment suggestions (lime/dolomite, sulfur, gypsum) or organic booster directions." 
-            },
-            wateringAndTillageTips: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Exactly three highly relevant agricultural best practices for this soil-crop combination."
-            },
-            sustainabilityRating: { 
-              type: Type.INTEGER, 
-              description: "Rating from 1 (poor/high-runoff) to 5 (excellent organic/regenerative practice)." 
-            }
-          },
-          required: [
-            "soilAnalysis", 
-            "npkStatus", 
-            "recommendedFertilizers", 
-            "applicationSchedule", 
-            "soilAmendments", 
-            "wateringAndTillageTips", 
-            "sustainabilityRating"
-          ]
-        }
-      }
+    const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+      })
     });
 
-    const recommendationData = JSON.parse(response.text || "{}");
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`Groq API ${response.status}: ${err.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("Empty response from Groq");
+    }
+
+    // Clean up any markdown wrappers
+    let clean = content.trim();
+    if (clean.startsWith("```json")) clean = clean.slice(7).trim();
+    if (clean.startsWith("```")) clean = clean.slice(3).trim();
+    if (clean.endsWith("```")) clean = clean.slice(0, -3).trim();
+
+    const recommendationData = JSON.parse(clean);
+    console.log("✅ Recommendation generated");
     res.json(recommendationData);
-  } catch (error: any) {
-    console.error("Error generating recommendations:", error);
-    res.status(500).json({ error: "Failed to generate fertilizer recommendations. Please verify your API key." });
+
+  } catch (err: any) {
+    console.error("❌ RECOMMEND ERROR:", err.message);
+    res.status(500).json({ 
+      error: "Failed to generate recommendations.", 
+      details: err.message 
+    });
   }
 });
 
-// AI Agronomist Chat Companion Endpoint
+// ─── CHAT ───
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, history, profile } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: "Message is required" });
-    }
+    if (!message) return res.status(400).json({ error: "Message required" });
 
-    let profileContext = "";
+    let context = "";
     if (profile) {
-      profileContext = `The user has specified a soil profile:
-- Soil Type: ${profile.soilType}
-- Target Crop: ${profile.cropType}
-- NPK Levels: N=${profile.nLevel}ppm, P=${profile.pLevel}ppm, K=${profile.kLevel}ppm
-- Soil pH: ${profile.phLevel}
-- Moisture: ${profile.moistureLevel}
-- Organic Matter: ${profile.organicMatter}
-- Farm Area: ${profile.farmArea} ${profile.areaUnit}
-- Climate/Region: ${profile.climateRegion}`;
+      context = `User soil profile: ${profile.soilType}, ${profile.cropType}, N=${profile.nLevel}, P=${profile.pLevel}, K=${profile.kLevel}, pH=${profile.phLevel}. `;
     }
 
-    const systemInstruction = `You are an expert AI Agronomist and Fertilizer Advisor. Your task is to assist the user (farmer, gardener, or agricultural student) with follow-up questions, pest control, fertilizer sources, mixing methods, leaf symptoms, or crop-specific farming tips.
-Always keep your answers practical, action-oriented, clear, and science-backed. Keep responses concise but helpful, utilizing clean Markdown for formatting.
-${profileContext ? "\nUse the following user soil profile for highly context-aware advice:\n" + profileContext : ""}`;
-
-    // Create chat session with history
-    const chat = ai.chats.create({
-      model: "gemini-3.5-flash",
-      config: {
-        systemInstruction,
-      },
-    });
-
-    // Populate history (Gemini SDK uses { role: "user" | "model", parts: [{ text: "..." }] })
-    // Let's send messages in a single chat send message or rebuild content history.
-    // To support history accurately in standard chat:
-    const formattedHistory = (history || []).map((msg: any) => ({
-      role: msg.sender === "user" ? "user" : "model",
-      parts: [{ text: msg.text }]
-    }));
-
-    // If we want to use the standard Gemini SDK chat session, we can set pre-existing history:
-    // Standard chat configuration doesn't directly support injecting history array inside chats.create with @google/genai, 
-    // but we can pass history inside configuration or just use sendMessage.
-    // Wait, the safest and cleanest way with the @google/genai SDK is to create the chat and then send the message, 
-    // or let the backend do a single generateContent call with the context and chat history concatenated.
-    // Let's concatenate the chat history directly into a clean prompt format for generateContent to ensure full context and flawless history.
-    let fullPrompt = "Here is our discussion history so far:\n\n";
-    (history || []).forEach((msg: any) => {
-      const senderName = msg.sender === "user" ? "Farmer" : "AI Agronomist";
-      fullPrompt += `${senderName}: ${msg.text}\n\n`;
-    });
-    fullPrompt += `Farmer (New Question): ${message}\n\nAI Agronomist (Provide a clear, helpful response):`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: fullPrompt,
-      config: {
-        systemInstruction,
+    const messages = [
+      { 
+        role: "system", 
+        content: `You are an expert AI Agronomist. ${context}Be concise, practical, science-backed. Use Markdown formatting.` 
       }
+    ];
+
+    // Add history
+    if (history?.length) {
+      history.slice(-6).forEach((m: any) => {
+        messages.push({
+          role: m.sender === "user" ? "user" : "assistant",
+          content: m.text
+        });
+      });
+    }
+
+    messages.push({ role: "user", content: message });
+
+    console.log("💬 Calling Groq API for chat...");
+
+    const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048
+      })
     });
 
-    res.json({ text: response.text });
-  } catch (error) {
-    console.error("Error in AI Agronomist Chat:", error);
-    res.status(500).json({ error: "Failed to communicate with AI Agronomist." });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`Groq API ${response.status}: ${err.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || "I couldn't process that.";
+
+    console.log("✅ Chat response generated");
+    res.json({ text: reply });
+
+  } catch (err: any) {
+    console.error("❌ CHAT ERROR:", err.message);
+    res.status(500).json({ 
+      error: "Failed to communicate with AI Agronomist.", 
+      details: err.message 
+    });
   }
 });
 
-// Serve frontend assets
+// ─── SERVE FRONTEND ───
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
-    // Mount Vite middleware in development
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    // Serve static files in production
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server: http://localhost:${PORT}`);
+    console.log(`🤖 Provider: Groq (${MODEL})`);
+    console.log(`🧪 Health: http://localhost:${PORT}/api/health`);
   });
 }
 

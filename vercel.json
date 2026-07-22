@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    },
+    {
+      "src": "api/recommend.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/chat.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/api/recommend",
+      "dest": "/api/recommend.ts"
+    },
+    {
+      "src": "/api/chat",
+      "dest": "/api/chat.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/index.html"
+    }
+  ]
+}

@@ -89,7 +89,9 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Server returned error status. Check API configuration.');
+        const errorPayload = await response.json().catch(() => null);
+        const serverMessage = errorPayload?.error || errorPayload?.message || 'Server returned error status. Check API configuration.';
+        throw new Error(serverMessage);
       }
 
       const data = await response.json();
